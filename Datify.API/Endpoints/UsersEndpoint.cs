@@ -1,0 +1,250 @@
+﻿using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
+using Datify.Shared.Models;
+using Datify.Shared.Utilities;
+using Datify.Shared.Models.Enum;
+using static System.Net.Mime.MediaTypeNames;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Identity.Data;
+using Microsoft.AspNetCore.Identity.UI.Services;
+using System.Text.Encodings.Web;
+using Datify.API.Contracts;
+using Datify.API.Data;
+using Datify.API.Services;
+
+namespace Datify.API.Endpoints;
+
+public sealed class UsersEndpoint(IUserService service, IOtpService otpService, IEmailService emailService) : IEndpoints
+{
+    public void Register(IEndpointRouteBuilder routes)
+    {
+        var group = routes.MapGroup("/api/users").WithTags("Users").RequireAuthorization();
+        group.MapGet("/{id}", GetUser);
+        group.MapGet("/", GetAllUsers);
+        group.MapGet("/claims", GetUserClaims);
+        group.MapGet("/logout", LogoutUser);
+
+        group.MapPost("/", CreateUser);
+        group.MapPost("/sendOtp", SendOtp);
+        group.MapPost("/verifyotp", VerifyUserOtp);
+        group.MapPost("/forgotPassword", ForgotPassword);
+        group.MapPost("/resetPassword", ResetPassword);
+
+        group.MapPut("/{id}", UpdateUser);
+        group.MapPut("/changePassword/{id}", UpdatePassword);
+
+        group.MapDelete("/{id}", DeleteUser);
+
+        // ✅ Authentication Endpoints
+        group.MapPost("/auth/login", LoginUser).AllowAnonymous();
+        group.MapPost("/auth/register", RegisterUser).AllowAnonymous();
+    }
+
+    private async Task<IResult> GetAllUsers(CancellationToken cancellationToken)
+    {
+        var users = await service.GetAll(cancellationToken);
+        return Results.Ok(Response.CreateSuccessResult(users, "Users retrieved successfully"));
+    }
+
+    private async Task<IResult> GetUser(string id, CancellationToken cancellationToken)
+    {
+        var user = await service.GetById(id, cancellationToken);
+        if (user is null) return Results.NotFound(Response.CreateFailureResult<bool>("User not found"));
+        return Results.Ok(Response.CreateSuccessResult(user, "User retrieved successfully"));
+    }
+
+    private async Task<IResult> GetUserClaims(ClaimsPrincipal user, CancellationToken cancellationToken)
+    {
+        var claims = await service.GetUserClaims(user, cancellationToken);
+        if (string.IsNullOrEmpty(claims)) return Results.Unauthorized();
+        return Results.Ok(Response.CreateSuccessResult(claims, "Claims retrieved successfully"));
+    }
+
+    private async Task<IResult> LogoutUser(SignInManager<ApplicationUser> signInManager, CancellationToken cancellationToken)
+    {
+        await signInManager.SignOutAsync();
+        return Results.Ok(Response.CreateSuccessResult(true, "User logged out successfully"));
+    }
+
+    private async Task CreateUser(CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+    }
+
+    private async Task<IResult> UpdateUser(string id, UserDto model, CancellationToken cancellationToken)
+    {
+        var result = await service.UpdateById(id, model, cancellationToken);
+        if (!result) return Results.BadRequest(Response.CreateFailureResult("Failed to update user"));
+        return Results.Ok(Response.CreateSuccessResult(result, "User updated successfully"));
+    }
+
+    private async Task<IResult> UpdatePassword(string id, ChangePasswordRequestDto request, ApplicationDbContext adbc, UserManager<ApplicationUser> userManager, CancellationToken cancellationToken)
+    {
+        var user = await adbc.Users.FindAsync([id], cancellationToken: cancellationToken);
+        if (user is null) return Results.NotFound(Response.CreateFailureResult("User not found"));
+
+        var result = await userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+        if (result.Errors.Any())
+            return Results.Problem(Response.CreateFailureResult(result.Errors.First().Description).Message, statusCode: 400, title: "Change password failed");
+
+        return Results.Ok(Response.CreateSuccessResult(true, "Password updated successfully"));
+    }
+
+
+
+
+
+    
+    public async Task<IResult> ForgotPassword([FromBody] ForgotPasswordRequest request, [FromServices] UserManager<ApplicationUser> userManager)
+    {
+        if (string.IsNullOrEmpty(request.Email))
+            return Results.BadRequest(new { message = "Email is required." });
+
+        var user = await userManager.FindByEmailAsync(request.Email);
+        if (user == null)
+            return Results.NotFound(new { message = "User not found." });
+
+        var token = await userManager.GeneratePasswordResetTokenAsync(user);
+        var resetLink = $"https://localhost:7035/api/users/\r\n{user.Email}&token={Uri.EscapeDataString(token)}";
+
+        await emailService.SendEmailAsync(user.Email, "Reset Your Password",
+            $"Click <a href='{HtmlEncoder.Default.Encode(resetLink)}'>here</a> to reset your password.");
+
+        return Results.Ok(Response.CreateSuccessResult(true, "Password reset link has been sent to your email."));
+    }
+
+
+    
+    public async Task<IResult> ResetPassword([FromBody] ResetPasswordRequestDto request, [FromServices] UserManager<ApplicationUser> userManager)
+    {
+        if (string.IsNullOrEmpty(request.Email) ||
+            string.IsNullOrEmpty(request.ResetToken) ||
+            string.IsNullOrEmpty(request.NewPassword))
+        {
+            return Results.BadRequest(new { message = "Email, token, and new password are required." });
+        }
+
+        var user = await userManager.FindByEmailAsync(request.Email);
+        if (user == null)
+        {
+            return Results.NotFound(new { message = "User not found." });
+        }
+
+        var resetPassResult = await userManager.ResetPasswordAsync(user, request.ResetToken, request.NewPassword);
+
+        if (!resetPassResult.Succeeded)
+        {
+            var errors = string.Join(", ", resetPassResult.Errors.Select(e => e.Description));
+            return Results.BadRequest(new { message = $"Password reset failed: {errors}" });
+        }
+
+        return Results.Ok(Response.CreateSuccessResult(true,"Password reset successfully!" ));
+    }
+
+    private async Task<IResult> DeleteUser(string id, CancellationToken cancellationToken)
+    {
+        var result = await service.DeleteById(id, cancellationToken);
+        if (!result) return Results.BadRequest(Response.CreateFailureResult("Failed to delete user"));
+        return Results.Ok(Response.CreateSuccessResult(result, "User deleted successfully"));
+    }
+
+    private static async Task<IResult> LoginUser(
+        [FromBody] LoginRequestDto model,
+        [FromServices] UserManager<ApplicationUser> userManager,
+        [FromServices] SignInManager<ApplicationUser> signInManager,
+        [FromServices] IConfiguration config,
+        HttpContext httpContext)
+    {
+        var user = await userManager.FindByEmailAsync(model.Email);
+        if (user is null) return Results.BadRequest(Response.CreateFailureResult("Invalid email or password"));
+
+        var result = await signInManager.PasswordSignInAsync(user, model.Password, false, false);
+        if (!result.Succeeded) return Results.BadRequest(Response.CreateFailureResult("Invalid login attempt"));
+
+        // ✅ Retrieve user roles
+        var roles = await userManager.GetRolesAsync(user);
+        // ✅ Retrieve claims
+        var userClaims = await userManager.GetClaimsAsync(user);
+        var claimsList = userClaims.Select(c => $"{c.Type}:{c.Value}").ToList();
+        // ✅ Add role claims
+        foreach (var role in roles)
+        {
+            userClaims.Add(new Claim(ClaimTypes.Role, role));  // ✅ Add roles to claims
+            claimsList.Add($"{ClaimTypes.Role}:{role}");
+        }
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Secret"]));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var apiHost = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
+
+        var token = new JwtSecurityToken(
+            issuer: apiHost,
+            audience: apiHost,
+            claims: userClaims,
+            expires: DateTime.UtcNow.AddHours(1),
+            signingCredentials: creds
+        );
+
+        var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
+
+        var response = new LoginResponseDto("Bearer", tokenString, 3600, "refresh_token_placeholder")
+        {
+            Claims = string.Join(",", claimsList)
+        };
+
+        return Results.Ok(Response.CreateSuccessResult(response, "Login successful"));
+    }
+
+    private async Task<IResult> RegisterUser(
+        [FromBody] RegisterModel model,
+        [FromServices] UserManager<ApplicationUser> userManager)
+    {
+        var user = new ApplicationUser
+        {
+            UserName = model.Username,
+            Email = model.Email,
+            Gender = model.Gender ?? "NA",
+            FirstName = model.FirstName,
+            LastName = model.LastName,
+        };
+
+        var result = await userManager.CreateAsync(user, model.Password);
+        if (!result.Succeeded) return Results.BadRequest(Response.CreateFailureResult("User registration failed"));
+
+        // Add user claims
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, user.Id),
+            new(ClaimTypes.Name, user.UserName),
+            new(ClaimTypes.Email, user.Email),
+            new("Gender", user.Gender) // Custom claim
+        };
+        var subject = "Welcome onboard";
+        var body = "Congratulations! Your account has been registered successfully.";
+        await userManager.AddClaimsAsync(user, claims);
+        await emailService.SendEmailAsync(model.Email, subject, body);
+
+        return Results.Ok(Response.CreateSuccessResult(true, "User registered successfully"));
+    }
+
+
+    private async Task<IResult> SendOtp(string userEmail, ContactType contactType)
+    {
+        // generate otp
+        otpService.GenerateOtp();
+        // save and send otp
+        await otpService.SaveOtpAsync(userEmail, contactType);
+        return Results.Ok(Response.CreateSuccessResult(true, "Otp sent successfully"));
+    }
+
+
+    private async Task<IResult> VerifyUserOtp(string userEmail, string verificationOtpCode)
+    {
+        await otpService.VerifyOtpAsync(userEmail, verificationOtpCode);
+        return Results.Ok(Response.CreateSuccessResult(true, "Otp verification is successful"));
+    }
+}
