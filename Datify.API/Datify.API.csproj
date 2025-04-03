@@ -34,4 +34,8 @@
     <ProjectReference Include="..\Datify.Shared\Datify.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="Endpoints\PropertyEndpoints.cs" />
+  </ItemGroup>
+
 </Project>
