@@ -3,7 +3,5 @@ obj/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/
-/Datify.API/homxly_keys_mac.command
-/Datify.API/homxly_keys_windows.bat
-Datify.API/homxly_keys_mac.command
-Datify.API/homxly_keys_windows.bat
+homxly_keys_mac.command
+homxly_keys_windows.bat
