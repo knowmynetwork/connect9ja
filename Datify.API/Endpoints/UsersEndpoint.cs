@@ -46,7 +46,7 @@ public sealed class UsersEndpoint(IUserService service, IOtpService otpService, 
 
     private async Task<IResult> GetAllUsers(CancellationToken cancellationToken)
     {
-        var users = await service.GetAll(cancellationToken);
+        var users = await service.GetAllUsers(cancellationToken);
         return Results.Ok(Response.CreateSuccessResult(users, "Users retrieved successfully"));
     }
 
@@ -93,10 +93,6 @@ public sealed class UsersEndpoint(IUserService service, IOtpService otpService, 
 
         return Results.Ok(Response.CreateSuccessResult(true, "Password updated successfully"));
     }
-
-
-
-
 
     
     public async Task<IResult> ForgotPassword([FromBody] ForgotPasswordRequest request, [FromServices] UserManager<ApplicationUser> userManager)
@@ -199,34 +195,13 @@ public sealed class UsersEndpoint(IUserService service, IOtpService otpService, 
         return Results.Ok(Response.CreateSuccessResult(response, "Login successful"));
     }
 
-    private async Task<IResult> RegisterUser(
-        [FromBody] RegisterModel model,
-        [FromServices] UserManager<ApplicationUser> userManager)
+    private async Task<IResult> RegisterUser([FromBody] RegisterModelDto model,[FromServices] UserManager<ApplicationUser> userManager)
     {
-        var user = new ApplicationUser
+        var registerUser = await service.RegisterUser(model, userManager);
+        if (!registerUser)
         {
-            UserName = model.Username,
-            Email = model.Email,
-            Gender = model.Gender ?? "NA",
-            FirstName = model.FirstName,
-            LastName = model.LastName,
-        };
-
-        var result = await userManager.CreateAsync(user, model.Password);
-        if (!result.Succeeded) return Results.BadRequest(Response.CreateFailureResult("User registration failed"));
-
-        // Add user claims
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, user.Id),
-            new(ClaimTypes.Name, user.UserName),
-            new(ClaimTypes.Email, user.Email),
-            new("Gender", user.Gender) // Custom claim
-        };
-        var subject = "Welcome onboard";
-        var body = "Congratulations! Your account has been registered successfully.";
-        await userManager.AddClaimsAsync(user, claims);
-        await emailService.SendEmailAsync(model.Email, subject, body);
+            return Results.BadRequest(Response.CreateFailureResult("Failed to register user"));
+        }
 
         return Results.Ok(Response.CreateSuccessResult(true, "User registered successfully"));
     }
