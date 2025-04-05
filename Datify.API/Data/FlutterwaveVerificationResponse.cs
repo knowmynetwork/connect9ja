@@ -10,7 +10,7 @@ public class FlutterWaveVerificationResponse : BaseProperties
     public string? Message { get; set; }
     public Data? Data { get; set; }
 }
-
+ 
 public class Data
 {
     //[Key]

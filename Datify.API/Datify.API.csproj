@@ -36,6 +36,10 @@
 
   <ItemGroup>
     <Compile Remove="Endpoints\PropertyEndpoints.cs" />
+    <Compile Remove="Services\DocumentService.cs" />
+    <Compile Remove="Services\IDocumentService.cs" />
+    <Compile Remove="Services\IPropertyService.cs" />
+    <Compile Remove="Services\PropertyService.cs" />
   </ItemGroup>
 
 </Project>
