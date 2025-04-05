@@ -127,6 +127,9 @@ public class UserService(ApplicationDbContext dbContext, UserManager<Application
             FirstName = model.FirstName,
             LastName = model.LastName,            
             DateOfBirth = model.DateOfBirth,
+            PhoneNumber = model.PhoneNumber,
+            PasswordHash = model.Password,
+            
            
         };
 

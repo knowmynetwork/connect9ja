@@ -10,6 +10,7 @@ public class MappingProfiles : Profile
     {
         //user
         CreateMap<ApplicationUser, UserDto>().ReverseMap();
+        CreateMap<ApplicationUser, RegisterModelDto>().ReverseMap();
         
         //property
         CreateMap<DatifyProfile, DatifyProfileDto>().ReverseMap()
