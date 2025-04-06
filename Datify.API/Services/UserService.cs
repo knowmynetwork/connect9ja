@@ -15,7 +15,6 @@ public class UserService(
     ApplicationDbContext dbContext,
     UserManager<ApplicationUser> userManager,
     IEmailService emailService,
-    HttpContext httpContext,
     IMapper mapper) : IUserService
 {
     public async ValueTask<List<UserDto>> GetAllUsers(CancellationToken cancellationToken)
@@ -116,7 +115,8 @@ public class UserService(
         return true;
     }
 
-    public async ValueTask<bool> RegisterUser(RegisterModelDto model, UserManager<ApplicationUser> userManager2)
+    public async ValueTask<bool> RegisterUser(RegisterModelDto model, UserManager<ApplicationUser> userManager2,
+        HttpContext httpContext)
     {
         // check for existing user
         var existingUser = await userManager2.FindByEmailAsync(model.Email);

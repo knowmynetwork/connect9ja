@@ -21,7 +21,7 @@ builder.Services.AddSwaggerGen();
 //     options.SuppressXFrameOptionsHeader = true;
 // });
 builder.Services.AddAutoMapper(typeof(MappingProfiles));
-var blob = Environment.GetEnvironmentVariable("HomxlyAzureBlobStorage");
+var blob = Environment.GetEnvironmentVariable("DatifyAzureBlobStorage");
 
 builder.Services.AddSingleton(x => new BlobServiceClient(blob));
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
@@ -46,32 +46,7 @@ builder.Services.AddHttpContextAccessor();
 
 // ✅ Get the running domain dynamically
 var jwtConfig = builder.Configuration.GetSection("Jwt");
-var apiHost = "";
-if (Debugger.IsAttached)
-{
-    apiHost = "https://localhost:7035";
-}
-else
-{
-    apiHost = "https://proproundwebdev.azurewebsites.net";
-
-    /*using var scope = builder.Services.BuildServiceProvider().CreateScope();
-    var httpContextAccessor = scope.ServiceProvider.GetRequiredService<IHttpContextAccessor>();
-    var request = httpContextAccessor.HttpContext?.Request;
-    if (request != null)
-    {
-        apiHost = $"{request.Scheme}://{request.Host}";
-        Console.WriteLine("api host is "+apiHost);
-        if (apiHost.EndsWith('/'))
-        {
-            apiHost = apiHost.Substring(0, apiHost.Length - 1);
-            Console.WriteLine("api host is now "+apiHost);
-
-        }
-    }
-
-    apiHost = "https://proproundwebdev.azurewebsites.net";*/
-}
+var apiHost = jwtConfig["Issuer"];
 
 // ✅ Configure JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -140,11 +115,11 @@ static string? GetConnectionString()
 {
     foreach (DictionaryEntry env in Environment.GetEnvironmentVariables()) Console.WriteLine($"{env.Key}: {env.Value}");
     if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
-        return Environment.GetEnvironmentVariable("HomxlyDevDb3");
+        return Environment.GetEnvironmentVariable("DatifyDevDb");
     else if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Production")
-        return Environment.GetEnvironmentVariable("HomxlyProdDb");
+        return Environment.GetEnvironmentVariable("DatifyProdDb");
     else if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Local")
-        return Environment.GetEnvironmentVariable("HomxlyLocalDb3");
+        return Environment.GetEnvironmentVariable("DatifyLocalDb");
     else
         return null;
 }

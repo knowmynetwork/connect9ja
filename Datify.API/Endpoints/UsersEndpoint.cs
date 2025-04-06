@@ -193,9 +193,10 @@ public sealed class UsersEndpoint(IUserService service, IOtpService otpService, 
         return Results.Ok(Response.CreateSuccessResult(response, "Login successful"));
     }
 
-    private async Task<IResult> RegisterUser([FromBody] RegisterModelDto model,[FromServices] UserManager<ApplicationUser> userManager)
+    private async Task<IResult> RegisterUser([FromBody] RegisterModelDto model,
+        [FromServices] UserManager<ApplicationUser> userManager, HttpContext httpContext)
     {
-        var registerUser = await service.RegisterUser(model, userManager);
+        var registerUser = await service.RegisterUser(model, userManager, httpContext);
         if (!registerUser)
         {
             return Results.BadRequest(Response.CreateFailureResult("Failed to register user"));
