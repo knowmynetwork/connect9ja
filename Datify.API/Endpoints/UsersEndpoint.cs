@@ -7,10 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using Datify.Shared.Models;
 using Datify.Shared.Utilities;
 using Datify.Shared.Models.Enum;
-using static System.Net.Mime.MediaTypeNames;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity.Data;
-using Microsoft.AspNetCore.Identity.UI.Services;
 using System.Text.Encodings.Web;
 using Datify.API.Contracts;
 using Datify.API.Data;
@@ -42,6 +39,7 @@ public sealed class UsersEndpoint(IUserService service, IOtpService otpService, 
         // ✅ Authentication Endpoints
         group.MapPost("/auth/login", LoginUser).AllowAnonymous();
         group.MapPost("/auth/register", RegisterUser).AllowAnonymous();
+        group.MapGet("/confirm-email", ConfirmEmail).AllowAnonymous();
     }
 
     private async Task<IResult> GetAllUsers(CancellationToken cancellationToken)
@@ -206,7 +204,26 @@ public sealed class UsersEndpoint(IUserService service, IOtpService otpService, 
         return Results.Ok(Response.CreateSuccessResult(true, "User registered successfully"));
     }
 
+    private async Task<IResult> ConfirmEmail(
+        [FromQuery] string userId,
+        [FromQuery] string token,
+        [FromServices] UserManager<ApplicationUser> userManager)
+    {
+        var user = await userManager.FindByIdAsync(userId);
+        if (user == null) return Results.BadRequest("Invalid user.");
 
+        var result = await userManager.ConfirmEmailAsync(user, token);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join("; ", result.Errors.Select(e => e.Description));
+            return Results.BadRequest($"Email confirmation failed: {errors}");
+        }
+
+        return Results.Content(
+            "<html><body><h2>Email confirmed successfully!</h2><p>You can now log in.</p></body></html>",
+            "text/html");
+    }
+    
     private async Task<IResult> SendOtp(string userEmail, ContactType contactType)
     {
         // generate otp

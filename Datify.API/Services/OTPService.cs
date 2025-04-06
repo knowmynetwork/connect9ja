@@ -2,65 +2,51 @@
 using Datify.Shared.Models.Enum;
 using Microsoft.EntityFrameworkCore;
 
-namespace Datify.API.Services
+namespace Datify.API.Services;
+
+public class OtpService(ApplicationDbContext context, IEmailService emailService) : IOtpService
 {
-    public class OTPService
+    public string GenerateOtp()
     {
-        public class OtpService : IOtpService
+        return new Random().Next(100000, 999999).ToString();
+    }
+
+    public async Task SaveOtpAsync(string contact, ContactType contactType)
+    {
+        var verification = new OtpVerification()
         {
-            private readonly ApplicationDbContext _context;
-            private readonly IEmailService _emailService;
+            ContactNumberOrEmailValue = contact,
+            OtpCode = GenerateOtp(),
+            ContactType = contactType,
+            ExpirationTime = DateTime.UtcNow.AddMinutes(15) // OTP expires in 15 minutes
+        };
 
-            public OtpService(ApplicationDbContext context, IEmailService emailService)
-            {
-                _context = context;
-                _emailService = emailService;
-            }
+        context.OtpVerifications.Add(verification);
+        await context.SaveChangesAsync();
 
-            public string GenerateOtp()
-            {
-                return new Random().Next(100000, 999999).ToString();
-            }
+        await SendOtpToUser(contact, verification.OtpCode);
+    }
 
-            public async Task SaveOtpAsync(string contact, ContactType contactType)
-            {
-                var verification = new OtpVerification()
-                {
-                    ContactNumberOrEmailValue = contact,
-                    OtpCode = GenerateOtp(),
-                    ContactType = contactType,
-                    ExpirationTime = DateTime.UtcNow.AddMinutes(15) // OTP expires in 15 minutes
-                };
+    public async Task SendOtpToUser(string contact, string verificationOtpCode)
+    {
+        //if email
+        await emailService.SendEmailAsync("noreply@homxly.com", contact, "One Time Password (OTP)",
+            $"<p>This is your OTP <strong> {verificationOtpCode} </strong> to continue Homxly registration</p>");
+    }
 
-                _context.OtpVerifications.Add(verification);
-              await _context.SaveChangesAsync();
+    public async Task<bool> VerifyOtpAsync(string contact, string otp)
+    {
+        var verification = await context.OtpVerifications.OrderByDescending(x => x.Id).FirstAsync(x =>
+            x.ContactNumberOrEmailValue == contact);
 
-                await SendOtpToUser(contact, verification.OtpCode);
-            }
+        if (verification == null || verification.OtpCode != otp.Trim())
+            throw new InvalidOperationException(
+                "otp code not verified. Either an old otp code or time has expired. Try again or request a new one");
 
-            public async Task SendOtpToUser(string contact, string verificationOtpCode)
-            {
-                //if email
-                await _emailService.SendEmailAsync("noreply@homxly.com", contact, "One Time Password (OTP)",
-                    $"<p>This is your OTP <strong> {verificationOtpCode} </strong> to continue Homxly registration</p>");
-            }
-
-            public async Task<bool> VerifyOtpAsync(string contact, string otp)
-            {
-                var verification = await _context.OtpVerifications.OrderByDescending(x => x.Id).FirstAsync(x =>
-                    x.ContactNumberOrEmailValue == contact);
-
-                if (verification == null || verification.OtpCode != otp.Trim())
-                {
-                    throw new InvalidOperationException("otp code not verified. Either an old otp code or time has expired. Try again or request a new one");
-                }
-
-                verification.IsVerified = true;
-                verification.DateVerified = DateTime.UtcNow;
-                _context.OtpVerifications.Update(verification);
-                await _context.SaveChangesAsync();
-                return true;
-            }
-        }
+        verification.IsVerified = true;
+        verification.DateVerified = DateTime.UtcNow;
+        context.OtpVerifications.Update(verification);
+        await context.SaveChangesAsync();
+        return true;
     }
 }

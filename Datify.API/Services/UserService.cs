@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using System.Net;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Datify.Shared.Models;
 using Datify.Shared.Utilities;
@@ -6,19 +7,23 @@ using System.Security.Claims;
 using System.Text;
 using Datify.API.Contracts;
 using Datify.API.Data;
-using Microsoft.Win32;
 using AutoMapper;
 
 namespace Datify.API.Services;
 
-public class UserService(ApplicationDbContext dbContext, UserManager<ApplicationUser> userManager,IEmailService emailService, IMapper mapper) : IUserService
+public class UserService(
+    ApplicationDbContext dbContext,
+    UserManager<ApplicationUser> userManager,
+    IEmailService emailService,
+    HttpContext httpContext,
+    IMapper mapper) : IUserService
 {
     public async ValueTask<List<UserDto>> GetAllUsers(CancellationToken cancellationToken)
     {
         var users = await dbContext.Users.ToListAsync();  
 
-        if (users == null || !users.Any())
-            return new List<UserDto>();
+        if (users.Count == 0)
+            return [];
 
         // Map the users to DTO
         var userDtos = mapper.Map<List<UserDto>>(users);
@@ -34,7 +39,7 @@ public class UserService(ApplicationDbContext dbContext, UserManager<Application
         // Apply filters dynamically based on the query parameters
         if (!string.IsNullOrEmpty(userName))
         {
-            query = query.Where(u => u.UserName.Contains(userName));  
+            query = query.Where(u => u.UserName != null && u.UserName.Contains(userName));  
         }
 
         if (!string.IsNullOrEmpty(email))
@@ -50,8 +55,8 @@ public class UserService(ApplicationDbContext dbContext, UserManager<Application
         // Execute the query and get the filtered users
         var filteredUsers = await query.ToListAsync();
 
-        if (filteredUsers == null || !filteredUsers.Any())
-            return new List<UserDto>();
+        if (filteredUsers.Count == 0)
+            return [];
 
         // Map the filtered users to DTO
         var userDtos = mapper.Map<List<UserDto>>(filteredUsers);
@@ -72,7 +77,7 @@ public class UserService(ApplicationDbContext dbContext, UserManager<Application
 
         // ✅ Ensure roles are stored as a List<string>
         var roles = new List<string>();
-        if (validUser.Email!.StartsWith("admin@"))
+        if (validUser.Email.StartsWith("admin@"))
         {
             roles.Add("Admin");
         }
@@ -83,8 +88,8 @@ public class UserService(ApplicationDbContext dbContext, UserManager<Application
 
         var claims = new UserClaimsDto(
             validUser.Id,
-            validUser.UserName!,
-            validUser.Email!,
+            validUser.UserName ?? "",
+            validUser.Email,
             roles // ✅ Now passing a List<string> instead of a string
         );
 
@@ -111,31 +116,33 @@ public class UserService(ApplicationDbContext dbContext, UserManager<Application
         return true;
     }
 
-    public async ValueTask<bool> RegisterUser(RegisterModelDto model, UserManager<ApplicationUser> userManager)
+    public async ValueTask<bool> RegisterUser(RegisterModelDto model, UserManager<ApplicationUser> userManager2)
     {
         // check for existing user
-        var existingUser = await userManager.FindByEmailAsync(model.Email);
+        var existingUser = await userManager2.FindByEmailAsync(model.Email);
         if (existingUser != null)
         {
             throw new Exception("Email already exists");
         }
+
         var user = new ApplicationUser
         {
             UserName = model.Username,
             Email = model.Email,
-            Gender = model.Gender ?? "NA",
+            Gender = model.Gender,
             FirstName = model.FirstName,
-            LastName = model.LastName,            
+            LastName = model.LastName,
             DateOfBirth = model.DateOfBirth,
             PhoneNumber = model.PhoneNumber,
-            PasswordHash = model.Password,
-            
-           
         };
 
-        var result = await userManager.CreateAsync(user, model.Password);
-        if (result.Succeeded)
+        var result = await userManager2.CreateAsync(user, model.Password);
+        if (!result.Succeeded)
         {
+            var errors = string.Join("; ", result.Errors.Select(e => e.Description));
+            throw new Exception($"Registration failed: {errors}");
+        }
+
         // Add user claims
         var claims = new List<Claim>
         {
@@ -144,12 +151,29 @@ public class UserService(ApplicationDbContext dbContext, UserManager<Application
             new(ClaimTypes.Email, user.Email),
             new("Gender", user.Gender) // Custom claim
         };
-        var subject = "Welcome onboard";
-        var body = "Congratulations! Your account has been registered successfully.";
-        await userManager.AddClaimsAsync(user, claims);
-        await emailService.SendEmailAsync(model.Email, subject, body);
-        }
-        return result.Succeeded;
 
+        // Add email confirmation
+        var token = await userManager2.GenerateEmailConfirmationTokenAsync(user);
+        var encodedToken = WebUtility.UrlEncode(token);
+        var request = httpContext.Request;
+        var baseUrl = $"{request.Scheme}://{request.Host}";
+        var confirmationLink = $"{baseUrl}/api/users/confirm-email?userId={user.Id}&token={encodedToken}";
+
+        var emailHtml = $"""
+                             <html>
+                             <body>
+                                 <h2>Welcome to Datify 👋</h2>
+                                 <p>Click the button below to confirm your email and activate your account:</p>
+                                 <p><a href="{confirmationLink}" style="padding: 10px 15px; background-color: #4CAF50; color: white; text-decoration: none;">Confirm Email</a></p>
+                                 <p>If you did not request this, please ignore this email.</p>
+                             </body>
+                             </html>
+                         """;
+
+        await emailService.SendEmailAsync(user.Email, "Confirm your email", emailHtml);
+
+        return true;
     }
+
+    
 }
