@@ -79,15 +79,22 @@ using (var scope = app.Services.CreateScope())
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     var roles = new[] { "Admin", "User", "GuestUser", "HostUser" };
 
-    foreach (var role in roles)
+    /*foreach (var role in roles)
     {
-        if (!await roleManager.RoleExistsAsync(role))
+        try
         {
-            await roleManager.CreateAsync(new IdentityRole(role));
+            if (!await roleManager.RoleExistsAsync(role))
+            {
+                await roleManager.CreateAsync(new IdentityRole(role));
+            }
         }
-    }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+    }*/
 }
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Environment.EnvironmentName.ToLower() == "local")
 {
     app.UseDeveloperExceptionPage(); // ✅ Enables detailed error messages
 
@@ -119,7 +126,9 @@ static string? GetConnectionString()
     else if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Production")
         return Environment.GetEnvironmentVariable("DatifyProdDb");
     else if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Local")
-        return Environment.GetEnvironmentVariable("DatifyLocalDb");
+        //return Environment.GetEnvironmentVariable("DatifyLocalDb");
+        return Environment.GetEnvironmentVariable("DatifyDevDb");
+
     else
         return null;
 }

@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Diagnostics;
+using System.Net;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Datify.Shared.Models;
@@ -167,6 +168,9 @@ public class UserService : IUserService
             var errors = string.Join("; ", result.Errors.Select(e => e.Description));
             throw new Exception($"Registration failed: {errors}");
         }
+        Console.WriteLine("========2");
+        Console.WriteLine(user.ToJson());
+        Console.WriteLine("========3");
 
         // Add user claims
         var claims = new List<Claim>
@@ -174,7 +178,7 @@ public class UserService : IUserService
             new(ClaimTypes.NameIdentifier, user.Id),
             new(ClaimTypes.Name, user.UserName),
             new(ClaimTypes.Email, user.Email),
-            new("Gender", user.Gender) // Custom claim
+            //new("Gender", user.Gender) // Custom claim
         };
 
         // Add email confirmation
