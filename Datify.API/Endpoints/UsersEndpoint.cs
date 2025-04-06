@@ -15,8 +15,19 @@ using Datify.API.Services;
 
 namespace Datify.API.Endpoints;
 
-public sealed class UsersEndpoint(IUserService service, IOtpService otpService, IEmailService emailService) : IEndpoints
+public sealed class UsersEndpoint : IEndpoints
 {
+    private readonly IUserService service;
+    private readonly IOtpService otpService;
+    private readonly IEmailService emailService;
+
+    public UsersEndpoint(IUserService service, IOtpService otpService, IEmailService emailService)
+    {
+        this.service = service;
+        this.otpService = otpService;
+        this.emailService = emailService;
+    }
+
     public void Register(IEndpointRouteBuilder routes)
     {
         var group = routes.MapGroup("/api/users").WithTags("Users").RequireAuthorization();
@@ -40,11 +51,25 @@ public sealed class UsersEndpoint(IUserService service, IOtpService otpService, 
         group.MapPost("/auth/login", LoginUser).AllowAnonymous();
         group.MapPost("/auth/register", RegisterUser).AllowAnonymous();
         group.MapGet("/confirm-email", ConfirmEmail).AllowAnonymous();
+
+        group.MapPut("/{id}/firstName", UpdateFirstName);
+        group.MapPut("/{id}/lastName", UpdateLastName);
+        group.MapPut("/{id}/gender", UpdateGender);
+        group.MapPut("/{id}/dateOfBirth", UpdateDateOfBirth);
+        group.MapPut("/{id}/nickname", UpdateNickname);
+        group.MapPut("/{id}/relationshipGoals", UpdateRelationshipGoals);
+        group.MapPut("/{id}/distancePreference", UpdateDistancePreference);
+        group.MapPut("/{id}/location", UpdateLocation);
+
+        group.MapGet("/{id}/profile", GetUserProfile);
     }
 
     private async Task<IResult> GetAllUsers(CancellationToken cancellationToken)
     {
         var users = await service.GetAllUsers(cancellationToken);
+        if (users.Count == 0)
+            return Results.NotFound(Response.CreateFailureResult<List<UserProfileDto>>("No users found"));
+
         return Results.Ok(Response.CreateSuccessResult(users, "Users retrieved successfully"));
     }
 
@@ -155,6 +180,11 @@ public sealed class UsersEndpoint(IUserService service, IOtpService otpService, 
     {
         var user = await userManager.FindByEmailAsync(model.Email);
         if (user is null) return Results.BadRequest(Response.CreateFailureResult("Invalid email or password"));
+        
+        if (!user.EmailConfirmed)
+        {
+            throw new Exception("Email is not confirmed. Please verify your email before logging in.");
+        }
 
         var result = await signInManager.PasswordSignInAsync(user, model.Password, false, false);
         if (!result.Succeeded) return Results.BadRequest(Response.CreateFailureResult("Invalid login attempt"));
@@ -239,5 +269,62 @@ public sealed class UsersEndpoint(IUserService service, IOtpService otpService, 
     {
         await otpService.VerifyOtpAsync(userEmail, verificationOtpCode);
         return Results.Ok(Response.CreateSuccessResult(true, "Otp verification is successful"));
+    }
+
+    private async Task<IResult> UpdateFirstName(string id, [FromBody] string firstName, CancellationToken cancellationToken)
+    {
+        await service.UpdateFirstName(id, firstName, cancellationToken);
+        return Results.Ok(Response.CreateSuccessResult(true, "First name updated successfully"));
+    }
+
+    private async Task<IResult> UpdateLastName(string id, [FromBody] string lastName, CancellationToken cancellationToken)
+    {
+        await service.UpdateLastName(id, lastName, cancellationToken);
+        return Results.Ok(Response.CreateSuccessResult(true, "Last name updated successfully"));
+    }
+
+    private async Task<IResult> UpdateGender(string id, [FromBody] string gender, CancellationToken cancellationToken)
+    {
+        await service.UpdateGender(id, gender, cancellationToken);
+        return Results.Ok(Response.CreateSuccessResult(true, "Gender updated successfully"));
+    }
+
+    private async Task<IResult> UpdateDateOfBirth(string id, [FromBody] DateTime dateOfBirth, CancellationToken cancellationToken)
+    {
+        await service.UpdateDateOfBirth(id, dateOfBirth, cancellationToken);
+        return Results.Ok(Response.CreateSuccessResult(true, "Date of birth updated successfully"));
+    }
+
+    private async Task<IResult> UpdateNickname(string id, [FromBody] string nickname, CancellationToken cancellationToken)
+    {
+        await service.UpdateNickname(id, nickname, cancellationToken);
+        return Results.Ok(Response.CreateSuccessResult(true, "Nickname updated successfully"));
+    }
+
+    private async Task<IResult> UpdateRelationshipGoals(string id, [FromBody] string relationshipGoals, CancellationToken cancellationToken)
+    {
+        await service.UpdateRelationshipGoals(id, relationshipGoals, cancellationToken);
+        return Results.Ok(Response.CreateSuccessResult(true, "Relationship goals updated successfully"));
+    }
+
+    private async Task<IResult> UpdateDistancePreference(string id, [FromBody] double distancePreference, CancellationToken cancellationToken)
+    {
+        await service.UpdateDistancePreference(id, distancePreference, cancellationToken);
+        return Results.Ok(Response.CreateSuccessResult(true, "Distance preference updated successfully"));
+    }
+
+    private async Task<IResult> UpdateLocation(string id, [FromBody] string location, CancellationToken cancellationToken)
+    {
+        await service.UpdateLocation(id, location, cancellationToken);
+        return Results.Ok(Response.CreateSuccessResult(true, "Location updated successfully"));
+    }
+
+    private async Task<IResult> GetUserProfile(string id, CancellationToken cancellationToken)
+    {
+        var userProfile = await service.GetUserProfile(id, cancellationToken);
+        if (userProfile == null)
+            return Results.NotFound(Response.CreateFailureResult<UserProfileDto>("User not found"));
+
+        return Results.Ok(Response.CreateSuccessResult(userProfile, "User profile retrieved successfully"));
     }
 }

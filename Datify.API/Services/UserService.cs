@@ -11,25 +11,36 @@ using AutoMapper;
 
 namespace Datify.API.Services;
 
-public class UserService(
-    ApplicationDbContext dbContext,
-    UserManager<ApplicationUser> userManager,
-    IEmailService emailService,
-    IMapper mapper) : IUserService
+public class UserService : IUserService
 {
-    public async ValueTask<List<UserDto>> GetAllUsers(CancellationToken cancellationToken)
+    private readonly ApplicationDbContext dbContext;
+    private readonly UserManager<ApplicationUser> userManager;
+    private readonly IEmailService emailService;
+    private readonly IMapper mapper;
+
+    public UserService(ApplicationDbContext dbContext, UserManager<ApplicationUser> userManager, IEmailService emailService, IMapper mapper)
     {
-        var users = await dbContext.Users.ToListAsync();  
-
-        if (users.Count == 0)
-            return [];
-
-        // Map the users to DTO
-        var userDtos = mapper.Map<List<UserDto>>(users);
-
-        return userDtos;
+        this.dbContext = dbContext;
+        this.userManager = userManager;
+        this.emailService = emailService;
+        this.mapper = mapper;
     }
 
+    public async ValueTask<List<UserProfileDto>> GetAllUsers(CancellationToken cancellationToken)
+    {
+        var users = await dbContext.Users
+            .Include(u => u.Interests) // Include related Interests
+            .Include(u => u.Photos)   // Include related Photos
+            .ToListAsync(cancellationToken);
+
+        if (users.Count == 0)
+            return new List<UserProfileDto>();
+
+        // Map the users to UserProfileDto
+        var userProfileDtos = mapper.Map<List<UserProfileDto>>(users);
+
+        return userProfileDtos;
+    }
 
     public async ValueTask<List<UserDto>> FilterUsersAsync(string? userName, string? email, string? gender)
     {
@@ -64,7 +75,21 @@ public class UserService(
     
     }
 
+    public async ValueTask<UserProfileDto?> GetUserProfile(string userId, CancellationToken cancellationToken)
+    {
+        var user = await dbContext.Users
+            .Include(u => u.Interests) // Include related Interests
+            .Include(u => u.Photos)   // Include related Photos
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
 
+        if (user == null)
+            return null;
+
+        // Map the user to UserProfileDto
+        var userProfileDto = mapper.Map<UserProfileDto>(user);
+
+        return userProfileDto;
+    }
 
     public async ValueTask<ApplicationUser?> GetById(string id, CancellationToken cancellationToken)
         => await dbContext.Users.FindAsync([id], cancellationToken: cancellationToken);
@@ -175,5 +200,103 @@ public class UserService(
         return true;
     }
 
-    
+    public async ValueTask<bool> UpdateFirstName(string userId, string firstName, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(firstName)) throw new ArgumentException("First name cannot be null or empty");
+
+        var user = await dbContext.Users.FindAsync(new object[] { userId }, cancellationToken);
+        if (user == null) throw new Exception("User not found");
+
+        user.FirstName = firstName;
+        dbContext.Users.Update(user);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async ValueTask<bool> UpdateLastName(string userId, string lastName, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(lastName)) throw new ArgumentException("Last name cannot be null or empty");
+
+        var user = await dbContext.Users.FindAsync(new object[] { userId }, cancellationToken);
+        if (user == null) throw new Exception("User not found");
+
+        user.LastName = lastName;
+        dbContext.Users.Update(user);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async ValueTask<bool> UpdateGender(string userId, string gender, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(gender)) throw new ArgumentException("Gender cannot be null or empty");
+
+        var user = await dbContext.Users.FindAsync(new object[] { userId }, cancellationToken);
+        if (user == null) throw new Exception("User not found");
+
+        user.Gender = gender;
+        dbContext.Users.Update(user);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async ValueTask<bool> UpdateDateOfBirth(string userId, DateTime dateOfBirth, CancellationToken cancellationToken)
+    {
+        var user = await dbContext.Users.FindAsync(new object[] { userId }, cancellationToken);
+        if (user == null) throw new Exception("User not found");
+
+        user.DateOfBirth = dateOfBirth;
+        dbContext.Users.Update(user);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async ValueTask<bool> UpdateNickname(string userId, string nickname, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(nickname)) throw new ArgumentException("Nickname cannot be null or empty");
+
+        var user = await dbContext.Users.FindAsync(new object[] { userId }, cancellationToken);
+        if (user == null) throw new Exception("User not found");
+
+        user.Nickname = nickname;
+        dbContext.Users.Update(user);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async ValueTask<bool> UpdateRelationshipGoals(string userId, string relationshipGoals, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(relationshipGoals)) throw new ArgumentException("Relationship goals cannot be null or empty");
+
+        var user = await dbContext.Users.FindAsync(new object[] { userId }, cancellationToken);
+        if (user == null) throw new Exception("User not found");
+
+        user.RelationshipGoals = relationshipGoals;
+        dbContext.Users.Update(user);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async ValueTask<bool> UpdateDistancePreference(string userId, double distancePreference, CancellationToken cancellationToken)
+    {
+        var user = await dbContext.Users.FindAsync(new object[] { userId }, cancellationToken);
+        if (user == null) throw new Exception("User not found");
+
+        user.DistancePreference = distancePreference;
+        dbContext.Users.Update(user);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async ValueTask<bool> UpdateLocation(string userId, string location, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(location)) throw new ArgumentException("Location cannot be null or empty");
+
+        var user = await dbContext.Users.FindAsync(new object[] { userId }, cancellationToken);
+        if (user == null) throw new Exception("User not found");
+
+        user.Location = location;
+        dbContext.Users.Update(user);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
 }
