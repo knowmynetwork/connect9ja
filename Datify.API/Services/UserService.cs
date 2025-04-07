@@ -141,16 +141,16 @@ public class UserService : IUserService
         return true;
     }
 
-    public async ValueTask<bool> RegisterUser(RegisterModelDto model, UserManager<ApplicationUser> userManager2,
-        HttpContext httpContext)
+    public async ValueTask<UserProfileDto> RegisterUser(RegisterModelDto model, UserManager<ApplicationUser> userManager2, HttpContext httpContext)
     {
-        // check for existing user
+        // Check for existing user
         var existingUser = await userManager2.FindByEmailAsync(model.Email);
         if (existingUser != null)
         {
             throw new Exception("Email already exists");
         }
 
+        // Create a new user
         var user = new ApplicationUser
         {
             UserName = model.Username,
@@ -168,18 +168,6 @@ public class UserService : IUserService
             var errors = string.Join("; ", result.Errors.Select(e => e.Description));
             throw new Exception($"Registration failed: {errors}");
         }
-        Console.WriteLine("========2");
-        Console.WriteLine(user.ToJson());
-        Console.WriteLine("========3");
-
-        // Add user claims
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, user.Id),
-            new(ClaimTypes.Name, user.UserName),
-            new(ClaimTypes.Email, user.Email),
-            //new("Gender", user.Gender) // Custom claim
-        };
 
         // Add email confirmation
         var token = await userManager2.GenerateEmailConfirmationTokenAsync(user);
@@ -189,19 +177,22 @@ public class UserService : IUserService
         var confirmationLink = $"{baseUrl}/api/users/confirm-email?userId={user.Id}&token={encodedToken}";
 
         var emailHtml = $"""
-                             <html>
-                             <body>
-                                 <h2>Welcome to Datify 👋</h2>
-                                 <p>Click the button below to confirm your email and activate your account:</p>
-                                 <p><a href="{confirmationLink}" style="padding: 10px 15px; background-color: #4CAF50; color: white; text-decoration: none;">Confirm Email</a></p>
-                                 <p>If you did not request this, please ignore this email.</p>
-                             </body>
-                             </html>
-                         """;
+            <html>
+            <body>
+                <h2>Welcome to Datify 👋</h2>
+                <p>Click the button below to confirm your email and activate your account:</p>
+                <p><a href="{confirmationLink}" style="padding: 10px 15px; background-color: #4CAF50; color: white; text-decoration: none;">Confirm Email</a></p>
+                <p>If you did not request this, please ignore this email.</p>
+            </body>
+            </html>
+        """;
 
         await emailService.SendEmailAsync(user.Email, "Confirm your email", emailHtml);
 
-        return true;
+        // Map the newly created user to UserProfileDto
+        var userProfileDto = mapper.Map<UserProfileDto>(user);
+
+        return userProfileDto;
     }
 
     public async ValueTask<bool> UpdateFirstName(string userId, string firstName, CancellationToken cancellationToken)

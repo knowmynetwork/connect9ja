@@ -223,16 +223,10 @@ public sealed class UsersEndpoint : IEndpoints
         return Results.Ok(Response.CreateSuccessResult(response, "Login successful"));
     }
 
-    private async Task<IResult> RegisterUser([FromBody] RegisterModelDto model,
-        [FromServices] UserManager<ApplicationUser> userManager, HttpContext httpContext)
+    private async Task<IResult> RegisterUser([FromBody] RegisterModelDto model, [FromServices] UserManager<ApplicationUser> userManager, HttpContext httpContext)
     {
-        var registerUser = await service.RegisterUser(model, userManager, httpContext);
-        if (!registerUser)
-        {
-            return Results.BadRequest(Response.CreateFailureResult("Failed to register user"));
-        }
-
-        return Results.Ok(Response.CreateSuccessResult(true, "User registered successfully"));
+        var userProfile = await service.RegisterUser(model, userManager, httpContext);
+        return Results.Ok(Response.CreateSuccessResult(userProfile, "User registered successfully"));
     }
 
     private async Task<IResult> ConfirmEmail(

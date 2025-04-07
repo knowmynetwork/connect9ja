@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Datify.API.Contracts;
 public interface IUserService : IServices
 {
-    ValueTask<bool> RegisterUser(RegisterModelDto model, UserManager<ApplicationUser> userManager2,
+    ValueTask<UserProfileDto> RegisterUser(RegisterModelDto model, UserManager<ApplicationUser> userManager2,
         HttpContext httpContext);
     ValueTask<bool> DeleteById(string id, CancellationToken cancellationToken);
     //ValueTask<List<UserDto>> GetAllUsers2(CancellationToken cancellationToken);

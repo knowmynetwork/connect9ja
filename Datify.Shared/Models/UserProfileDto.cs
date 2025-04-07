@@ -18,7 +18,6 @@ public class UserProfileDto
     public string? Gender { get; set; }    
     public string? ResetToken { get; set; } 
     public DateTime? ResetTokenExpiry { get; set; } = DateTime.UtcNow.AddMinutes(15);
-    public string? Nickname { get; set; }
     public DateTime? Birthday { get; set; }
     public string? RelationshipGoals { get; set; }
     public double? DistancePreference { get; set; }
