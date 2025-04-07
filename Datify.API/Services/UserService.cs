@@ -1,14 +1,17 @@
 ﻿using System.Diagnostics;
+using System.IdentityModel.Tokens.Jwt;
 using System.Net;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using Datify.Shared.Models;
-using Datify.Shared.Utilities;
 using System.Security.Claims;
 using System.Text;
+using AutoMapper;
 using Datify.API.Contracts;
 using Datify.API.Data;
-using AutoMapper;
+using Datify.Shared.Models;
+using Datify.Shared.Utilities;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
 
 namespace Datify.API.Services;
 
@@ -50,17 +53,17 @@ public class UserService : IUserService
         // Apply filters dynamically based on the query parameters
         if (!string.IsNullOrEmpty(userName))
         {
-            query = query.Where(u => u.UserName != null && u.UserName.Contains(userName));  
+            query = query.Where(u => u.UserName != null && u.UserName.Contains(userName));
         }
 
         if (!string.IsNullOrEmpty(email))
         {
-            query = query.Where(u => u.Email.Contains(email));  
+            query = query.Where(u => u.Email.Contains(email));
         }
 
         if (!string.IsNullOrEmpty(gender))
         {
-            query = query.Where(u => u.Gender.Contains(gender));  
+            query = query.Where(u => u.Gender.Contains(gender));
         }
 
         // Execute the query and get the filtered users
@@ -73,7 +76,7 @@ public class UserService : IUserService
         var userDtos = mapper.Map<List<UserDto>>(filteredUsers);
 
         return userDtos;
-    
+
     }
 
     public async ValueTask<UserProfileDto?> GetUserProfile(string userId, CancellationToken cancellationToken)
@@ -141,7 +144,7 @@ public class UserService : IUserService
         return true;
     }
 
-    public async ValueTask<UserProfileDto> RegisterUser(RegisterModelDto model, UserManager<ApplicationUser> userManager2, HttpContext httpContext)
+    public async ValueTask<UserProfileDto> RegisterUser(RegisterModelDto model, UserManager<ApplicationUser> userManager2, HttpContext httpContext, IConfiguration config)
     {
         // Check for existing user
         var existingUser = await userManager2.FindByEmailAsync(model.Email);
@@ -189,8 +192,13 @@ public class UserService : IUserService
 
         await emailService.SendEmailAsync(user.Email, "Confirm your email", emailHtml);
 
+        // Generate JWT token
+        var roles = await userManager2.GetRolesAsync(user);
+        var jwtToken = GenerateJwtToken(user, roles, httpContext, config);
+
         // Map the newly created user to UserProfileDto
         var userProfileDto = mapper.Map<UserProfileDto>(user);
+        userProfileDto.JwtToken = jwtToken;
 
         return userProfileDto;
     }
@@ -293,5 +301,35 @@ public class UserService : IUserService
         dbContext.Users.Update(user);
         await dbContext.SaveChangesAsync(cancellationToken);
         return true;
+    }
+
+    public string GenerateJwtToken(ApplicationUser user, IList<string> roles, HttpContext httpContext, IConfiguration config)
+    {
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.NameIdentifier, user.Id),
+            new Claim(ClaimTypes.Name, user.UserName ?? ""),
+            new Claim(ClaimTypes.Email, user.Email ?? "")
+        };
+
+        // Add role claims
+        foreach (var role in roles)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, role));
+        }
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Secret"]));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var apiHost = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
+
+        var token = new JwtSecurityToken(
+            issuer: apiHost,
+            audience: apiHost,
+            claims: claims,
+            expires: DateTime.UtcNow.AddHours(1),
+            signingCredentials: creds
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }

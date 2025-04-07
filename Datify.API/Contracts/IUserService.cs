@@ -1,14 +1,14 @@
-﻿using Microsoft.AspNetCore.Identity;
-using Datify.Shared.Models;
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Datify.API.Data;
+using Datify.Shared.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Datify.API.Contracts;
 public interface IUserService : IServices
 {
     ValueTask<UserProfileDto> RegisterUser(RegisterModelDto model, UserManager<ApplicationUser> userManager2,
-        HttpContext httpContext);
+        HttpContext httpContext, IConfiguration config);
     ValueTask<bool> DeleteById(string id, CancellationToken cancellationToken);
     //ValueTask<List<UserDto>> GetAllUsers2(CancellationToken cancellationToken);
     ValueTask<ApplicationUser?> GetById(string id, CancellationToken cancellationToken);
@@ -25,4 +25,6 @@ public interface IUserService : IServices
     ValueTask<bool> UpdateLocation(string userId, string location, CancellationToken cancellationToken);
     ValueTask<List<UserProfileDto>> GetAllUsers(CancellationToken cancellationToken);
     ValueTask<UserProfileDto?> GetUserProfile(string userId, CancellationToken cancellationToken);
+    string GenerateJwtToken(ApplicationUser user, IList<string> roles, HttpContext httpContext, IConfiguration config);
+
 }

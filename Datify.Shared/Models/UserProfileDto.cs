@@ -23,4 +23,5 @@ public class UserProfileDto
     public double? DistancePreference { get; set; }
     public List<InterestDto>? Interests { get; set; } // Updated to use InterestDto
     public List<PhotoDto>? Photos { get; set; } // Updated to use PhotoDto
+    public string? JwtToken { get; set; }
 }

@@ -1,17 +1,17 @@
 ﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
-using Datify.Shared.Models;
-using Datify.Shared.Utilities;
-using Datify.Shared.Models.Enum;
-using Microsoft.AspNetCore.Identity.Data;
 using System.Text.Encodings.Web;
 using Datify.API.Contracts;
 using Datify.API.Data;
 using Datify.API.Services;
+using Datify.Shared.Models;
+using Datify.Shared.Models.Enum;
+using Datify.Shared.Utilities;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.Data;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
 
 namespace Datify.API.Endpoints;
 
@@ -117,7 +117,7 @@ public sealed class UsersEndpoint : IEndpoints
         return Results.Ok(Response.CreateSuccessResult(true, "Password updated successfully"));
     }
 
-    
+
     public async Task<IResult> ForgotPassword([FromBody] ForgotPasswordRequest request, [FromServices] UserManager<ApplicationUser> userManager)
     {
         if (string.IsNullOrEmpty(request.Email))
@@ -137,7 +137,7 @@ public sealed class UsersEndpoint : IEndpoints
     }
 
 
-    
+
     public async Task<IResult> ResetPassword([FromBody] ResetPasswordRequestDto request, [FromServices] UserManager<ApplicationUser> userManager)
     {
         if (string.IsNullOrEmpty(request.Email) ||
@@ -161,7 +161,7 @@ public sealed class UsersEndpoint : IEndpoints
             return Results.BadRequest(new { message = $"Password reset failed: {errors}" });
         }
 
-        return Results.Ok(Response.CreateSuccessResult(true,"Password reset successfully!" ));
+        return Results.Ok(Response.CreateSuccessResult(true, "Password reset successfully!"));
     }
 
     private async Task<IResult> DeleteUser(string id, CancellationToken cancellationToken)
@@ -176,11 +176,12 @@ public sealed class UsersEndpoint : IEndpoints
         [FromServices] UserManager<ApplicationUser> userManager,
         [FromServices] SignInManager<ApplicationUser> signInManager,
         [FromServices] IConfiguration config,
+        [FromServices] IUserService userService,
         HttpContext httpContext)
     {
         var user = await userManager.FindByEmailAsync(model.Email);
         if (user is null) return Results.BadRequest(Response.CreateFailureResult("Invalid email or password"));
-        
+
         if (!user.EmailConfirmed)
         {
             throw new Exception("Email is not confirmed. Please verify your email before logging in.");
@@ -191,41 +192,20 @@ public sealed class UsersEndpoint : IEndpoints
 
         // ✅ Retrieve user roles
         var roles = await userManager.GetRolesAsync(user);
-        // ✅ Retrieve claims
-        var userClaims = await userManager.GetClaimsAsync(user);
-        var claimsList = userClaims.Select(c => $"{c.Type}:{c.Value}").ToList();
-        // ✅ Add role claims
-        foreach (var role in roles)
+
+        var jwtToken = userService.GenerateJwtToken(user, roles, httpContext, config);
+
+        var response = new LoginResponseDto("Bearer", jwtToken, 3600, "refresh_token_placeholder")
         {
-            userClaims.Add(new Claim(ClaimTypes.Role, role));  // ✅ Add roles to claims
-            claimsList.Add($"{ClaimTypes.Role}:{role}");
-        }
-
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Secret"]));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-        var apiHost = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
-
-        var token = new JwtSecurityToken(
-            issuer: apiHost,
-            audience: apiHost,
-            claims: userClaims,
-            expires: DateTime.UtcNow.AddHours(1),
-            signingCredentials: creds
-        );
-
-        var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
-
-        var response = new LoginResponseDto("Bearer", tokenString, 3600, "refresh_token_placeholder")
-        {
-            Claims = string.Join(",", claimsList)
+            Claims = ""
         };
 
         return Results.Ok(Response.CreateSuccessResult(response, "Login successful"));
     }
 
-    private async Task<IResult> RegisterUser([FromBody] RegisterModelDto model, [FromServices] UserManager<ApplicationUser> userManager, HttpContext httpContext)
+    private async Task<IResult> RegisterUser([FromBody] RegisterModelDto model, [FromServices] UserManager<ApplicationUser> userManager, HttpContext httpContext, [FromServices] IConfiguration config)
     {
-        var userProfile = await service.RegisterUser(model, userManager, httpContext);
+        var userProfile = await service.RegisterUser(model, userManager, httpContext, config);
         return Results.Ok(Response.CreateSuccessResult(userProfile, "User registered successfully"));
     }
 
@@ -248,7 +228,7 @@ public sealed class UsersEndpoint : IEndpoints
             "<html><body><h2>Email confirmed successfully!</h2><p>You can now log in.</p></body></html>",
             "text/html");
     }
-    
+
     private async Task<IResult> SendOtp(string userEmail, ContactType contactType)
     {
         // generate otp
