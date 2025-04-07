@@ -5,7 +5,7 @@ namespace Datify.Shared.Models;
 public class UserProfileDto
 {
     public string? Email { get; set; }
-    public Guid Id { get; set; }
+    public Guid? Id { get; set; }
     public string? PhoneNumber { get; set; }
     public string? NickName { get; set; }
     public string? Bio { get; set; }

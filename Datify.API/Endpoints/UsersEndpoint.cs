@@ -245,51 +245,51 @@ public sealed class UsersEndpoint : IEndpoints
         return Results.Ok(Response.CreateSuccessResult(true, "Otp verification is successful"));
     }
 
-    private async Task<IResult> UpdateFirstName(string id, [FromBody] string firstName, CancellationToken cancellationToken)
+    private async Task<IResult> UpdateFirstName(string id, [FromBody] UserProfileDto request, CancellationToken cancellationToken)
     {
-        await service.UpdateFirstName(id, firstName, cancellationToken);
+        await service.UpdateFirstName(id, request.FirstName, cancellationToken);
         return Results.Ok(Response.CreateSuccessResult(true, "First name updated successfully"));
     }
 
-    private async Task<IResult> UpdateLastName(string id, [FromBody] string lastName, CancellationToken cancellationToken)
+    private async Task<IResult> UpdateLastName(string id, [FromBody] UserProfileDto request, CancellationToken cancellationToken)
     {
-        await service.UpdateLastName(id, lastName, cancellationToken);
+        await service.UpdateLastName(id, request.LastName, cancellationToken);
         return Results.Ok(Response.CreateSuccessResult(true, "Last name updated successfully"));
     }
 
-    private async Task<IResult> UpdateGender(string id, [FromBody] string gender, CancellationToken cancellationToken)
+    private async Task<IResult> UpdateGender(string id, [FromBody] UserProfileDto request, CancellationToken cancellationToken)
     {
-        await service.UpdateGender(id, gender, cancellationToken);
+        await service.UpdateGender(id, request.Gender, cancellationToken);
         return Results.Ok(Response.CreateSuccessResult(true, "Gender updated successfully"));
     }
 
-    private async Task<IResult> UpdateDateOfBirth(string id, [FromBody] DateTime dateOfBirth, CancellationToken cancellationToken)
+    private async Task<IResult> UpdateDateOfBirth(string id, [FromBody] UserProfileDto request, CancellationToken cancellationToken)
     {
-        await service.UpdateDateOfBirth(id, dateOfBirth, cancellationToken);
+        await service.UpdateDateOfBirth(id, request.DateOfBirth.Value, cancellationToken);
         return Results.Ok(Response.CreateSuccessResult(true, "Date of birth updated successfully"));
     }
 
-    private async Task<IResult> UpdateNickname(string id, [FromBody] string nickname, CancellationToken cancellationToken)
+    private async Task<IResult> UpdateNickname(string id, [FromBody] UserProfileDto request, CancellationToken cancellationToken)
     {
-        await service.UpdateNickname(id, nickname, cancellationToken);
+        await service.UpdateNickname(id, request.NickName, cancellationToken);
         return Results.Ok(Response.CreateSuccessResult(true, "Nickname updated successfully"));
     }
-
-    private async Task<IResult> UpdateRelationshipGoals(string id, [FromBody] string relationshipGoals, CancellationToken cancellationToken)
+    
+    private async Task<IResult> UpdateRelationshipGoals(string id, [FromBody] UserProfileDto request, CancellationToken cancellationToken)
     {
-        await service.UpdateRelationshipGoals(id, relationshipGoals, cancellationToken);
+        await service.UpdateRelationshipGoals(id, request.RelationshipGoals, cancellationToken);
         return Results.Ok(Response.CreateSuccessResult(true, "Relationship goals updated successfully"));
     }
 
-    private async Task<IResult> UpdateDistancePreference(string id, [FromBody] double distancePreference, CancellationToken cancellationToken)
+    private async Task<IResult> UpdateDistancePreference(string id, [FromBody] UserProfileDto request, CancellationToken cancellationToken)
     {
-        await service.UpdateDistancePreference(id, distancePreference, cancellationToken);
+        await service.UpdateDistancePreference(id, request.DistancePreference.Value, cancellationToken);
         return Results.Ok(Response.CreateSuccessResult(true, "Distance preference updated successfully"));
     }
 
-    private async Task<IResult> UpdateLocation(string id, [FromBody] string location, CancellationToken cancellationToken)
+    private async Task<IResult> UpdateLocation(string id, [FromBody] UserProfileDto request, CancellationToken cancellationToken)
     {
-        await service.UpdateLocation(id, location, cancellationToken);
+        await service.UpdateLocation(id, request.Location, cancellationToken);
         return Results.Ok(Response.CreateSuccessResult(true, "Location updated successfully"));
     }
 
