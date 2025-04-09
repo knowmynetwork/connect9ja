@@ -26,5 +26,7 @@ public interface IUserService : IServices
     ValueTask<List<UserProfileDto>> GetAllUsers(CancellationToken cancellationToken);
     ValueTask<UserProfileDto?> GetUserProfile(string userId, CancellationToken cancellationToken);
     string GenerateJwtToken(ApplicationUser user, IList<string> roles, HttpContext httpContext, IConfiguration config);
+    
+    ValueTask<bool> FileComplaint(string userId, string defendant, string message, CancellationToken cancellationToken);
 
 }

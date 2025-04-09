@@ -51,7 +51,8 @@ public sealed class UsersEndpoint : IEndpoints
         group.MapPost("/auth/login", LoginUser).AllowAnonymous();
         group.MapPost("/auth/register", RegisterUser).AllowAnonymous();
         group.MapGet("/confirm-email", ConfirmEmail).AllowAnonymous();
-
+        
+        group.MapPost("/file-complain", FileComplaint);
         group.MapPut("/{id}/firstName", UpdateFirstName);
         group.MapPut("/{id}/lastName", UpdateLastName);
         group.MapPut("/{id}/gender", UpdateGender);
@@ -60,7 +61,6 @@ public sealed class UsersEndpoint : IEndpoints
         group.MapPut("/{id}/relationshipGoals", UpdateRelationshipGoals);
         group.MapPut("/{id}/distancePreference", UpdateDistancePreference);
         group.MapPut("/{id}/location", UpdateLocation);
-
         group.MapGet("/{id}/profile", GetUserProfile);
     }
 
@@ -300,5 +300,18 @@ public sealed class UsersEndpoint : IEndpoints
             return Results.NotFound(Response.CreateFailureResult<UserProfileDto>("User not found"));
 
         return Results.Ok(Response.CreateSuccessResult(userProfile, "User profile retrieved successfully"));
+    }
+    
+    public async Task<IResult> FileComplaint(string userId, string defendant, string message, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await service.FileComplaint(userId, defendant, message, cancellationToken);
+            return Results.Ok(Response.CreateSuccessResult(result, "Report Successfully"));
+        }
+        catch (Exception e)
+        {
+            return Results.NotFound(Response.CreateFailureResult(e.Message));
+        } 
     }
 }

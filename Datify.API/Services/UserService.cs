@@ -332,4 +332,21 @@ public class UserService : IUserService
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
+    public async ValueTask<bool> FileComplaint(string userId, string defendant, string message, CancellationToken cancellationToken)
+    {
+        var existingUser = await dbContext.Users.FindAsync([userId], cancellationToken: cancellationToken);
+        var existingUser2 = await dbContext.Users.FindAsync([userId], cancellationToken: cancellationToken);
+        if (existingUser == null || existingUser2 == null)
+        {
+            throw new Exception("User not found");
+        }
+        var report = new Report();
+        report.Message = message;
+        report.Reporter = userId;
+        report.Defendant = defendant;
+        dbContext.Reports.Add(report);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
 }
