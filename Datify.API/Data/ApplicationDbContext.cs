@@ -9,4 +9,7 @@ public class ApplicationDbContext(DbContextOptions options) : IdentityDbContext<
     public DbSet<Document> Documents { get; set; }
     public DbSet<FlutterWaveVerificationResponse> FlutterWaveVerificationResponses { get; set; }
     public DbSet<OtpVerification> OtpVerifications { get; set; }
+    
+    public DbSet<Message> Messages { get; set; }
+
 }

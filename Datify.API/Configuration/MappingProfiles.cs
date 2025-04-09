@@ -11,6 +11,7 @@ public class MappingProfiles : Profile
         //user
         CreateMap<ApplicationUser, UserDto>().ReverseMap();
         CreateMap<ApplicationUser, RegisterModelDto>().ReverseMap();
+        CreateMap<Message, MessageDto>().ReverseMap();
         
         //property
         CreateMap<DatifyProfile, DatifyProfileDto>().ReverseMap()
