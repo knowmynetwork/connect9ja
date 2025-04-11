@@ -1,6 +1,4 @@
-﻿using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
+﻿using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Datify.API.Contracts;
 using Datify.API.Data;
@@ -11,23 +9,12 @@ using Datify.Shared.Utilities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
 
 namespace Datify.API.Endpoints;
 
-public sealed class UsersEndpoint : IEndpoints
+public sealed class UsersEndpoint(IUserService service, IOtpService otpService, IEmailService emailService)
+    : IEndpoints
 {
-    private readonly IUserService service;
-    private readonly IOtpService otpService;
-    private readonly IEmailService emailService;
-
-    public UsersEndpoint(IUserService service, IOtpService otpService, IEmailService emailService)
-    {
-        this.service = service;
-        this.otpService = otpService;
-        this.emailService = emailService;
-    }
-
     public void Register(IEndpointRouteBuilder routes)
     {
         var group = routes.MapGroup("/api/users").WithTags("Users").RequireAuthorization();
@@ -67,33 +54,28 @@ public sealed class UsersEndpoint : IEndpoints
     private async Task<IResult> GetAllUsers(CancellationToken cancellationToken)
     {
         var users = await service.GetAllUsers(cancellationToken);
-        if (users.Count == 0)
-            return Results.NotFound(Response.CreateFailureResult<List<UserProfileDto>>("No users found"));
-
-        return Results.Ok(Response.CreateSuccessResult(users, "Users retrieved successfully"));
+        return users.Count == 0 ? Results.NotFound(Response.CreateFailureResult<List<UserProfileDto>>("No users found")) : Results.Ok(Response.CreateSuccessResult(users, "Users retrieved successfully"));
     }
 
     private async Task<IResult> GetUser(string id, CancellationToken cancellationToken)
     {
         var user = await service.GetById(id, cancellationToken);
-        if (user is null) return Results.NotFound(Response.CreateFailureResult<bool>("User not found"));
-        return Results.Ok(Response.CreateSuccessResult(user, "User retrieved successfully"));
+        return user is null ? Results.NotFound(Response.CreateFailureResult<bool>("User not found")) : Results.Ok(Response.CreateSuccessResult(user, "User retrieved successfully"));
     }
 
     private async Task<IResult> GetUserClaims(ClaimsPrincipal user, CancellationToken cancellationToken)
     {
         var claims = await service.GetUserClaims(user, cancellationToken);
-        if (string.IsNullOrEmpty(claims)) return Results.Unauthorized();
-        return Results.Ok(Response.CreateSuccessResult(claims, "Claims retrieved successfully"));
+        return string.IsNullOrEmpty(claims) ? Results.Unauthorized() : Results.Ok(Response.CreateSuccessResult(claims, "Claims retrieved successfully"));
     }
 
-    private async Task<IResult> LogoutUser(SignInManager<ApplicationUser> signInManager, CancellationToken cancellationToken)
+    private static async Task<IResult> LogoutUser(SignInManager<ApplicationUser> signInManager, CancellationToken cancellationToken)
     {
         await signInManager.SignOutAsync();
         return Results.Ok(Response.CreateSuccessResult(true, "User logged out successfully"));
     }
 
-    private async Task CreateUser(CancellationToken cancellationToken)
+    private static async Task CreateUser(CancellationToken cancellationToken)
     {
         await Task.CompletedTask;
     }
@@ -101,24 +83,19 @@ public sealed class UsersEndpoint : IEndpoints
     private async Task<IResult> UpdateUser(string id, UserDto model, CancellationToken cancellationToken)
     {
         var result = await service.UpdateById(id, model, cancellationToken);
-        if (!result) return Results.BadRequest(Response.CreateFailureResult("Failed to update user"));
-        return Results.Ok(Response.CreateSuccessResult(result, "User updated successfully"));
+        return !result ? Results.BadRequest(Response.CreateFailureResult("Failed to update user")) : Results.Ok(Response.CreateSuccessResult(result, "User updated successfully"));
     }
 
-    private async Task<IResult> UpdatePassword(string id, ChangePasswordRequestDto request, ApplicationDbContext adbc, UserManager<ApplicationUser> userManager, CancellationToken cancellationToken)
+    private static async Task<IResult> UpdatePassword(string id, ChangePasswordRequestDto request, ApplicationDbContext adbc, UserManager<ApplicationUser> userManager, CancellationToken cancellationToken)
     {
         var user = await adbc.Users.FindAsync([id], cancellationToken: cancellationToken);
         if (user is null) return Results.NotFound(Response.CreateFailureResult("User not found"));
 
         var result = await userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
-        if (result.Errors.Any())
-            return Results.Problem(Response.CreateFailureResult(result.Errors.First().Description).Message, statusCode: 400, title: "Change password failed");
-
-        return Results.Ok(Response.CreateSuccessResult(true, "Password updated successfully"));
+        return result.Errors.Any() ? Results.Problem(Response.CreateFailureResult(result.Errors.First().Description).Message, statusCode: 400, title: "Change password failed") : Results.Ok(Response.CreateSuccessResult(true, "Password updated successfully"));
     }
-
-
-    public async Task<IResult> ForgotPassword([FromBody] ForgotPasswordRequest request, [FromServices] UserManager<ApplicationUser> userManager)
+    
+    private async Task<IResult> ForgotPassword([FromBody] ForgotPasswordRequest request, [FromServices] UserManager<ApplicationUser> userManager)
     {
         if (string.IsNullOrEmpty(request.Email))
             return Results.BadRequest(new { message = "Email is required." });
@@ -130,15 +107,15 @@ public sealed class UsersEndpoint : IEndpoints
         var token = await userManager.GeneratePasswordResetTokenAsync(user);
         var resetLink = $"https://localhost:7035/api/users/\r\n{user.Email}&token={Uri.EscapeDataString(token)}";
 
-        await emailService.SendEmailAsync(user.Email, "Reset Your Password",
-            $"Click <a href='{HtmlEncoder.Default.Encode(resetLink)}'>here</a> to reset your password.");
+        if (user.Email != null)
+            await emailService.SendEmailAsync(user.Email, "Reset Your Password",
+                $"Click <a href='{HtmlEncoder.Default.Encode(resetLink)}'>here</a> to reset your password.");
 
         return Results.Ok(Response.CreateSuccessResult(true, "Password reset link has been sent to your email."));
     }
 
 
-
-    public async Task<IResult> ResetPassword([FromBody] ResetPasswordRequestDto request, [FromServices] UserManager<ApplicationUser> userManager)
+    private static async Task<IResult> ResetPassword([FromBody] ResetPasswordRequestDto request, [FromServices] UserManager<ApplicationUser> userManager)
     {
         if (string.IsNullOrEmpty(request.Email) ||
             string.IsNullOrEmpty(request.ResetToken) ||
@@ -155,20 +132,17 @@ public sealed class UsersEndpoint : IEndpoints
 
         var resetPassResult = await userManager.ResetPasswordAsync(user, request.ResetToken, request.NewPassword);
 
-        if (!resetPassResult.Succeeded)
-        {
-            var errors = string.Join(", ", resetPassResult.Errors.Select(e => e.Description));
-            return Results.BadRequest(new { message = $"Password reset failed: {errors}" });
-        }
+        if (resetPassResult.Succeeded)
+            return Results.Ok(Response.CreateSuccessResult(true, "Password reset successfully!"));
+        var errors = string.Join(", ", resetPassResult.Errors.Select(e => e.Description));
+        return Results.BadRequest(new { message = $"Password reset failed: {errors}" });
 
-        return Results.Ok(Response.CreateSuccessResult(true, "Password reset successfully!"));
     }
 
     private async Task<IResult> DeleteUser(string id, CancellationToken cancellationToken)
     {
         var result = await service.DeleteById(id, cancellationToken);
-        if (!result) return Results.BadRequest(Response.CreateFailureResult("Failed to delete user"));
-        return Results.Ok(Response.CreateSuccessResult(result, "User deleted successfully"));
+        return !result ? Results.BadRequest(Response.CreateFailureResult("Failed to delete user")) : Results.Ok(Response.CreateSuccessResult(result, "User deleted successfully"));
     }
 
     private static async Task<IResult> LoginUser(
@@ -209,7 +183,7 @@ public sealed class UsersEndpoint : IEndpoints
         return Results.Ok(Response.CreateSuccessResult(userProfile, "User registered successfully"));
     }
 
-    private async Task<IResult> ConfirmEmail(
+    private static async Task<IResult> ConfirmEmail(
         [FromQuery] string userId,
         [FromQuery] string token,
         [FromServices] UserManager<ApplicationUser> userManager)
@@ -218,15 +192,13 @@ public sealed class UsersEndpoint : IEndpoints
         if (user == null) return Results.BadRequest("Invalid user.");
 
         var result = await userManager.ConfirmEmailAsync(user, token);
-        if (!result.Succeeded)
-        {
-            var errors = string.Join("; ", result.Errors.Select(e => e.Description));
-            return Results.BadRequest($"Email confirmation failed: {errors}");
-        }
+        if (result.Succeeded)
+            return Results.Content(
+                "<html><body><h2>Email confirmed successfully!</h2><p>You can now log in.</p></body></html>",
+                "text/html");
+        var errors = string.Join("; ", result.Errors.Select(e => e.Description));
+        return Results.BadRequest($"Email confirmation failed: {errors}");
 
-        return Results.Content(
-            "<html><body><h2>Email confirmed successfully!</h2><p>You can now log in.</p></body></html>",
-            "text/html");
     }
 
     private async Task<IResult> SendOtp(string userEmail, ContactType contactType)
@@ -247,49 +219,52 @@ public sealed class UsersEndpoint : IEndpoints
 
     private async Task<IResult> UpdateFirstName(string id, [FromBody] UserProfileDto request, CancellationToken cancellationToken)
     {
-        await service.UpdateFirstName(id, request.FirstName, cancellationToken);
+        if (request.FirstName != null) await service.UpdateFirstName(id, request.FirstName, cancellationToken);
         return Results.Ok(Response.CreateSuccessResult(true, "First name updated successfully"));
     }
 
     private async Task<IResult> UpdateLastName(string id, [FromBody] UserProfileDto request, CancellationToken cancellationToken)
     {
-        await service.UpdateLastName(id, request.LastName, cancellationToken);
+        if (request.LastName != null) await service.UpdateLastName(id, request.LastName, cancellationToken);
         return Results.Ok(Response.CreateSuccessResult(true, "Last name updated successfully"));
     }
 
     private async Task<IResult> UpdateGender(string id, [FromBody] UserProfileDto request, CancellationToken cancellationToken)
     {
-        await service.UpdateGender(id, request.Gender, cancellationToken);
+        if (request.Gender != null) await service.UpdateGender(id, request.Gender, cancellationToken);
         return Results.Ok(Response.CreateSuccessResult(true, "Gender updated successfully"));
     }
 
     private async Task<IResult> UpdateDateOfBirth(string id, [FromBody] UserProfileDto request, CancellationToken cancellationToken)
     {
-        await service.UpdateDateOfBirth(id, request.DateOfBirth.Value, cancellationToken);
+        if (request.DateOfBirth != null)
+            await service.UpdateDateOfBirth(id, request.DateOfBirth.Value, cancellationToken);
         return Results.Ok(Response.CreateSuccessResult(true, "Date of birth updated successfully"));
     }
 
     private async Task<IResult> UpdateNickname(string id, [FromBody] UserProfileDto request, CancellationToken cancellationToken)
     {
-        await service.UpdateNickname(id, request.NickName, cancellationToken);
+        if (request.NickName != null) await service.UpdateNickname(id, request.NickName, cancellationToken);
         return Results.Ok(Response.CreateSuccessResult(true, "Nickname updated successfully"));
     }
     
     private async Task<IResult> UpdateRelationshipGoals(string id, [FromBody] UserProfileDto request, CancellationToken cancellationToken)
     {
-        await service.UpdateRelationshipGoals(id, request.RelationshipGoals, cancellationToken);
+        if (request.RelationshipGoals != null)
+            await service.UpdateRelationshipGoals(id, request.RelationshipGoals, cancellationToken);
         return Results.Ok(Response.CreateSuccessResult(true, "Relationship goals updated successfully"));
     }
 
     private async Task<IResult> UpdateDistancePreference(string id, [FromBody] UserProfileDto request, CancellationToken cancellationToken)
     {
-        await service.UpdateDistancePreference(id, request.DistancePreference.Value, cancellationToken);
+        if (request.DistancePreference != null)
+            await service.UpdateDistancePreference(id, request.DistancePreference.Value, cancellationToken);
         return Results.Ok(Response.CreateSuccessResult(true, "Distance preference updated successfully"));
     }
 
     private async Task<IResult> UpdateLocation(string id, [FromBody] UserProfileDto request, CancellationToken cancellationToken)
     {
-        await service.UpdateLocation(id, request.Location, cancellationToken);
+        if (request.Location != null) await service.UpdateLocation(id, request.Location, cancellationToken);
         return Results.Ok(Response.CreateSuccessResult(true, "Location updated successfully"));
     }
 
